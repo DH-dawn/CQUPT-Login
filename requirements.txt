@@ -1,0 +1,2 @@
+# Python 登录脚本使用的第三方依赖；其余导入均为 Python 标准库。
+requests
