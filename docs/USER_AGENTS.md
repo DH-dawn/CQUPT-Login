@@ -12,7 +12,7 @@
 - Windows 10 和 Windows 11 的 Chrome / Edge 都可能包含 `Windows NT 10.0`，不能通过把它改成 `Windows NT 11.0` 来获得真实的 Windows 11 UA。[Microsoft 官方说明](https://learn.microsoft.com/en-us/microsoft-edge/web-platform/how-to-detect-win11)
 - Safari 的常规 iPhone UA 不包含“iPhone 17”这样的具体机型；WebKit 公布的 Safari 26.0 示例仍包含 `iPhone OS 18_6`。[WebKit 官方说明](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/)
 
-因此，不要只把 `MI 8` 改成另一款设备名称，并将它当成该设备的真实请求头。UA 只是一个请求字段，修改 UA 不等于修改设备 MAC，也不保证服务器按预期识别终端类型。
+因此，不要只把 `MI 8` 改成另一款设备名称，并将它当成该设备的真实请求头。UA 只是一个请求字段，修改 UA 不等于修改设备 MAC，也不保证服务器按预期识别终端类型,但是认证的请求中貌似没有MAC校验，而是以0000000000000来代替的。因此，下面提供了一些常见是请求头供大家使用，如无法使用请且换成自己设备的UA。
 
 ## 手机端参考
 
