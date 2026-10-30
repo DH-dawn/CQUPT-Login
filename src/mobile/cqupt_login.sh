@@ -18,7 +18,7 @@ STATE_FILE="/tmp/cqupt_authed"
 # ================================================
 
 # 小米8 移动端 User-Agent
-MOBILE_UA="Mozilla/5.0 (Linux; Android 10; zh-cn; MI 8 Build/QKQ1.190828.002) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/115.0.5790.168 Mobile Safari/537.36 XiaoMi/MiuiBrowser/17.5.40216"
+MOBILE_UA=Mozilla/5.0 (Linux; Android 9; zh-cn; MI 6 Build/PKQ1.190118.001) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/115.0.5790.168 Mobile Safari/537.36 XiaoMi/MiuiBrowser/17.5.40216"
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $1" | tee -a "$LOG_FILE"
