@@ -50,7 +50,7 @@ Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHT
 
 ### 小米 8：原脚本自带样例
 
-项目原有的手机端脚本使用下面的字符串。本条仅记录原有配置，同样应按自己的实际认证请求替换：
+当前手机端 Shell 的 `MOBILE_UA` 仍使用下面的字符串；手机端 Python 已使用小米 6 字段，两者并不完全相同。本条记录 Shell 配置示例，部署时请以对应脚本中的实际值为准：
 
 ```text
 Mozilla/5.0 (Linux; Android 10; zh-cn; MI 8 Build/QKQ1.190828.002) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/115.0.5790.168 Mobile Safari/537.36 XiaoMi/MiuiBrowser/17.5.40216
@@ -104,11 +104,11 @@ PC_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, li
 MOBILE_UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36"
 ```
 
-两份 Python 脚本都在电脑上运行。`mobile` 表示采用手机端请求头，不要求在手机上运行 Python。
+两份 Python 脚本都在电脑上运行。`mobile` 同时采用手机端请求头和固定前缀 `1`，`pc` 固定使用前缀 `0`；更换 UA 不会改变拼接前缀。切换认证设备类型时，请使用对应目录的脚本。
 
 ### Shell：手机端请求头版本
 
-在 `src/mobile/login.sh` 顶部替换 `MOBILE_UA`。当前 curl 和 wget 分支都引用这个变量，因此改一处即可：
+在 `src/mobile/cqupt_login.sh` 顶部替换 `MOBILE_UA`。当前 curl 和 wget 分支都引用这个变量，因此改一处即可：
 
 ```sh
 MOBILE_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36"
@@ -116,7 +116,7 @@ MOBILE_UA="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Ge
 
 ### Shell：电脑端请求头版本
 
-当前 `src/pc/login.sh` 没有统一的 UA 变量：curl 使用写在 `-A` 后面的完整字符串，wget 分支使用 `--header="User-Agent: Mozilla/5.0"`。替换时请同时修改两处，避免 curl 不可用时回退到另一种 UA。
+当前 `src/pc/cqupt_login.sh` 没有统一的 UA 变量：curl 使用写在 `-A` 后面的完整字符串，wget 分支使用 `--header="User-Agent: Mozilla/5.0"`。替换时请同时修改两处，避免 curl 不可用时回退到另一种 UA。
 
 如果希望今后只改一处，可自行在配置区加入：
 
@@ -140,4 +140,4 @@ PC_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like
 
 如愿意向项目补充样例，请注明设备、系统、浏览器及版本，以及认证是否成功。分享前隐藏账号、密码等个人信息。
 
-联通认证目前没有可验证的账号及请求记录，不能通过修改 UA 推断联通的账号前后缀，具体待后续抓包补充。
+当前四份脚本均已支持 `OPERATOR="unicom"`：电脑端固定拼接 `,0,账号@unicom`，手机端固定拼接 `,1,账号@unicom`。联通电脑端已提供认证成功响应抓包；手机端已确认请求格式，现有压缩响应截图尚不足以独立确认业务结果，路由器 Shell 的实际认证仍需测试。详情见 [README 的联通支持说明](../README.md#联通运营商支持情况)。
