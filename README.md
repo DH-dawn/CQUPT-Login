@@ -12,8 +12,6 @@
 
 这种直接的参数形式便于观察和分析认证请求，也为修改代码、调试参数和复现认证流程提供了便利。需要区分的是，URL 编码只是参数的表示方式，并不等同于加密。调试或分享请求记录时，请隐藏真实账号密码。
 
-路由器端尽量采用移动端的方式进行认证，因为手机很少会连接校园网认证，这样可以把pc端的认证保留下来，便于在pc端在其他环境下认证而不会被路由器认证的保活而挤掉。
-
 ## 部署方式与资源开销
 
 为减少路由器的运行与存储开销，本项目在路由器端采用 **Shell + 固件已有工具 + cron**。每次执行完成检测及必要的认证后退出，无需额外安装 Python 解释器和 `requests`，也无需让 Python 进程在路由器上常驻。
@@ -42,20 +40,20 @@ CQUPT-Login/
 └── src/
     ├── mobile/
     │   ├── login.py
-    │   └── login.sh
+    │   └── cqupt_login.sh
     └── pc/
         ├── login.py
-        └── login.sh
+        └── cqupt_login.sh
 ```
 
 | 脚本 | 请求头 | 运行方式 |
 | --- | --- | --- |
 | [src/pc/login.py](src/pc/login.py) | Windows / Edge | 在电脑上运行，测试电脑端认证与重连 |
 | [src/mobile/login.py](src/mobile/login.py) | Android / 小米浏览器 | 在电脑上运行，测试手机端请求头 |
-| [src/pc/login.sh](src/pc/login.sh) | curl 使用电脑端请求头；wget 回退使用通用 User-Agent | 单次执行，配合 crontab 定时运行 |
-| [src/mobile/login.sh](src/mobile/login.sh) | Android / 小米浏览器 | 单次执行，配合 crontab 定时运行 |
+| [src/pc/cqupt_login.sh](src/pc/cqupt_login.sh) | curl 使用电脑端请求头；wget 回退使用通用 User-Agent | 单次执行，配合 crontab 定时运行 |
+| [src/mobile/cqupt_login.sh](src/mobile/cqupt_login.sh) | Android / 小米浏览器 | 单次执行，配合 crontab 定时运行 |
 
-`pc` / `mobile` 表示请求头类型，并不表示脚本必须在对应设备上运行。路由器按已在电脑上验证成功的请求类型，选择一份 Shell 脚本部署。两个 Shell 脚本默认共用锁文件、状态文件和日志文件，不应同时安排运行。
+`pc` / `mobile` 表示认证设备类型及其请求头：电脑端固定使用前缀 `0`，手机端固定使用前缀 `1`，并不表示脚本必须在对应设备上运行。只修改 UA 不会自动改变固定前缀；切换认证设备类型时应选择对应目录的脚本。路由器按已在电脑上验证成功的请求类型，选择一份 Shell 脚本部署。两个 Shell 脚本默认共用锁文件、状态文件和日志文件，不应同时安排运行。
 
 ## 路由器部署：ImmortalWrt / OpenWrt
 
@@ -63,27 +61,43 @@ Shell 脚本面向提供 `/bin/sh` 的固件，依赖支持 `ip route get` 的 `
 
 ### 1. 选择脚本并修改配置
 
-选择 `src/pc/login.sh` 或 `src/mobile/login.sh` 中已验证成功的一份。当前 Shell 版本直接填写完整的 `USER_ACCOUNT`，没有 Python 版本的 `USERNAME` / `OPERATOR` 自动拼接配置。
-
-移动：
+选择 `src/pc/cqupt_login.sh` 或 `src/mobile/cqupt_login.sh` 中需要部署的一份。两份 Shell 现在与 Python 使用相同的账号、密码和运营商配置名，不再手填完整的认证账号：
 
 ```sh
-USER_ACCOUNT=",0,你的校园网账号@cmcc"
-USER_PASSWORD="你的校园网密码"
+USERNAME="你的校园网账号"
+PASSWORD="你的校园网密码"
+# 运营商选择：移动 cmcc；电信 telecom；联通 unicom
+OPERATOR="unicom"
 ```
 
-电信：
+`USERNAME` 只填写账号本身，`PASSWORD` 填写密码，`OPERATOR` 从 `cmcc`、`telecom`、`unicom` 中选择。Shell 变量名与等号之间不要加空格。无效运营商会输出错误提示并退出。
 
-```sh
-USER_ACCOUNT=",1,你的校园网账号@telecom"
-USER_PASSWORD="你的校园网密码"
-```
+Shell 其他配置与 Python 的变量名有所不同：
+
+| Shell 配置项 | 当前默认值 / 用途 |
+| --- | --- |
+| `BASE_URL` | `http://192.168.200.2:801`，认证服务器 |
+| `LOGIN_PATH` | `/eportal/`，与 `BASE_URL` 拼接为完整认证接口 |
+| `CHECK_URL` | `http://www.baidu.com`，外网检测地址 |
+| `LOG_FILE` / `LOCK_FILE` / `STATE_FILE` | 日志、进程锁和在线状态文件，默认路径见后文 |
+
+### 账号拼接规则
+
+前缀由认证设备类型决定，运营商只决定 `@` 后的后缀。四份脚本均采用以下规则，不再使用运营商前缀映射字典：
+
+| 运营商 | `OPERATOR` | 电脑端 `pc` | 手机端 `mobile` |
+| --- | --- | --- | --- |
+| 中国移动 | `cmcc` | `,0,账号@cmcc` | `,1,账号@cmcc` |
+| 中国电信 | `telecom` | `,0,账号@telecom` | `,1,账号@telecom` |
+| 中国联通 | `unicom` | `,0,账号@unicom` | `,1,账号@unicom` |
+
+Shell 在登录函数中自动生成 `USER_ACCOUNT`。配置区不再使用旧的 `USER_ACCOUNT` / `USER_PASSWORD`，密码配置统一为 `PASSWORD`。从旧版升级时，请将个人配置迁移到新变量中。
 
 请求头也请尽量替换为自己的已验证值，具体位置和样例见 [设备 UA 与替换方法](docs/USER_AGENTS.md)。手机端 Shell 修改 `MOBILE_UA`；电脑端 Shell 当前需要同时修改 curl 的 `-A` 和 wget 的 `User-Agent` 参数。
 
 ### 2. 脚本放在哪个位置
 
-将所选的一个 `login.sh` 上传到路由器，并命名为：
+将选中的 `src/mobile/cqupt_login.sh` 或 `src/pc/cqupt_login.sh` 上传到路由器，统一部署为：
 
 ```text
 /root/cqupt_login.sh
@@ -102,11 +116,11 @@ USER_PASSWORD="你的校园网密码"
 可通过支持路由器的文件传输工具上传，也可从电脑终端使用 SCP。以下以项目根目录中的手机端 Shell 为例，`192.168.1.1` 仅是路由器管理 IP 示例，请替换成实际值；它与校园网认证服务器 `192.168.200.2` 不同。
 
 ```sh
-scp -O src/mobile/login.sh root@192.168.1.1:/root/cqupt_login.sh
+scp -O src/mobile/cqupt_login.sh root@192.168.1.1:/root/cqupt_login.sh
 ssh root@192.168.1.1
 ```
 
-电脑端请求头版本将上传路径换成 `src/pc/login.sh`。`-O` 使用传统 SCP 传输，适用于未提供 SFTP 的固件；如果本机 SCP 不支持此选项，可使用不带 `-O` 的命令或其他传输工具。
+电脑端请求头版本将上传路径换成 `src/pc/cqupt_login.sh`。`-O` 使用传统 SCP 传输，适用于未提供 SFTP 的固件；如果本机 SCP 不支持此选项，可使用不带 `-O` 的命令或其他传输工具。
 
 ### 3. 在路由器上手动运行
 
@@ -176,8 +190,7 @@ logread -e cron
 
 ## 电脑测试：Python 版本
 
-这两份 Python 脚本均用于电脑测试。选择 `pc` 或 `mobile` 是选择请求头类型；路由器端按前面的 Shell 方案部署。
-
+这两份 Python 脚本均用于电脑测试。选择 `pc` 或 `mobile` 会同时选择固定的认证设备前缀和对应请求头；路由器端按前面的 Shell 方案部署。
 
 ### 1. 安装依赖
 
@@ -204,7 +217,7 @@ python3 -m pip install -r requirements.txt
 ```python
 USERNAME = "你的校园网账号"
 PASSWORD = "你的校园网密码"
-# 运营商选择：移动填 "cmcc"（,0,账号@cmcc）；电信填 "telecom"（,1,账号@telecom）
+# 运营商选择：移动填 "cmcc"；电信填 "telecom"；联通填 "unicom"
 OPERATOR = "cmcc"
 AUTH_URL = "http://192.168.200.2:801/eportal/"
 KEEP_ALIVE_INTERVAL = 60
@@ -216,22 +229,17 @@ TEST_URL = "http://www.baidu.com"
 | --- | --- |
 | `USERNAME` | 校园网账号，只填账号本身，不添加前缀或运营商后缀 |
 | `PASSWORD` | 校园网密码 |
-| `OPERATOR` | 移动填写 `"cmcc"`，电信填写 `"telecom"` |
+| `OPERATOR` | 移动填写 `"cmcc"`，电信填写 `"telecom"`，联通填写 `"unicom"` |
 | `AUTH_URL` | 完整认证接口地址 |
 | `KEEP_ALIVE_INTERVAL` | 外网检测成功后，进入下一轮检测前的等待时间，默认 60 秒 |
 | `RETRY_INTERVAL` | 外网检测失败或主循环发生异常后，进入下一轮前的等待时间，默认 5 秒 |
 | `TEST_URL` | 用于检测外网连通性的 HTTP 地址 |
 
-当前两个 Python 脚本使用相同的运营商映射：
+Python 直接拼接账号：电脑端使用 `f",0,{USERNAME}@{OPERATOR}"`，手机端使用 `f",1,{USERNAME}@{OPERATOR}"`，详见前面的[账号拼接规则](#账号拼接规则)。
 
-| 运营商 | `OPERATOR` | 自动生成的认证账号 |
-| --- | --- | --- |
-| 中国移动 | `"cmcc"` | `,0,账号@cmcc` |
-| 中国电信 | `"telecom"` | `,1,账号@telecom` |
+例如，`USERNAME = "1234567"`、`OPERATOR = "telecom"` 时，电脑端提交 `,0,1234567@telecom`，手机端提交 `,1,1234567@telecom`。请填写英文运营商值，不要填写中文名称，也不要在 `USERNAME` 中重复添加前后缀。
 
-例如，`USERNAME = "1234567"`、`OPERATOR = "telecom"` 时，实际提交的 `user_account` 为 `,1,1234567@telecom`。请使用配置表中的英文值，不要将 `OPERATOR` 填成中文运营商名称。
-
-请求参数 `v` 会通过 `str(int(time.time() * 1000) % 10000)` 自动生成，无需手动配置。
+Python 的请求参数 `v` 通过 `str(int(time.time() * 1000) % 10000)` 自动生成；Shell 则沿用随机值及原有回退逻辑，二者生成方式不同，均无需手动填写。
 
 ### 3. 启动脚本
 
@@ -295,9 +303,21 @@ python3 -u src/pc/login.py >> cqupt_login.log 2>&1
 
 ## 联通运营商支持情况
 
-目前没有可用于验证的联通账号，暂时无法确认联通校园网认证请求、账号前后缀和其他必要参数，当前代码尚未提供联通的运营商配置。后续拿到可验证的请求后再补充，不预先猜测其映射。
+电脑端、手机端的 Python 和 Shell 脚本均已加入联通选项，配置 `OPERATOR="unicom"`（Python 写为 `OPERATOR = "unicom"`）即可。电脑端拼接 `,0,账号@unicom`，手机端拼接 `,1,账号@unicom`。
 
-有联通卡且开通相应校园网服务的朋友，可以对自己正常认证时的请求进行抓包，查看认证接口、`user_account` 的完整格式、请求头及其他参数。欢迎提供脱敏后的请求格式和成功响应，帮助补充实现。抓包思路见 [获取自己的真实认证请求](docs/USER_AGENTS.md#获取自己的真实认证请求)。
+联通电脑端已获得包含 `result: "1"` 和“认证成功”提示的响应抓包；手机端已获得 `,1,账号@unicom` 的请求抓包，但已提供的响应截图正文为 gzip 压缩内容，尚不能仅凭 HTTP 200 确认其业务认证结果。脚本已做离线拼接检查，路由器上的 Shell 联通认证仍需实际测试。
+
+### 如何判断认证成功
+
+HTTP `200 OK` 表示请求返回，不能单独作为认证成功依据。已提供的电脑端电信和联通成功响应均可解码为以下形式：
+
+```text
+dr1003({"result":"1","msg":"认证成功"})
+```
+
+Python 会解析 JSONP，按 `result` 或成功提示判断；上面的字符串 `"1"` 响应可通过“认证成功”提示被现有代码识别。Shell 则使用文本匹配识别 `result=1`（含字符串形式），并保留已有的“已在线”兼容分支，包括 `ret_code=2`。两种实现的判断细节并非完全相同，排查时应查看实际响应内容及外网访问结果。
+
+欢迎提供不同设备和运营商的脱敏认证请求及成功响应，补充验证范围。抓包思路见[获取自己的真实认证请求](docs/USER_AGENTS.md#获取自己的真实认证请求)。
 
 ## 常见问题
 
@@ -313,7 +333,7 @@ python -m pip install -r requirements.txt
 
 ### 认证失败或无法获取本机 IP
 
-确认设备已连接校园网，并能访问认证服务器；检查账号、密码和运营商配置。Python 的 `USERNAME` 仅填写账号，Shell 的 `USER_ACCOUNT` 则填写完整认证字符串。
+确认设备已连接校园网，并能访问认证服务器；检查账号、密码和运营商配置。Python 和 Shell 的 `USERNAME` 都只填写账号，`PASSWORD` 填写密码，`OPERATOR` 选择运营商。完整认证字符串由脚本自动拼接，设备前缀取决于所选的 `pc` / `mobile` 脚本。
 
 ### 修改认证服务器地址后仍有请求指向旧地址
 

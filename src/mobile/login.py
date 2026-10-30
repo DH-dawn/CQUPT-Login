@@ -8,19 +8,14 @@ import json
 
 # ==================== 配置区 ====================
 USERNAME = "7654321"   # 统一认证码
-PASSWORD = "1234567890" # 密码
-# 运营商选择：移动填 "cmcc"（,0,账号@cmcc）；电信填 "telecom"（,1,账号@telecom）
-OPERATOR = "cmcc"
+PASSWORD = "12345678" # 密码
+# 运营商选择：移动填 "cmcc"；电信填 "telecom"；联通填 "unicom"（手机端固定拼接为 ,1,账号@运营商）
+OPERATOR = "telecom"
 AUTH_URL = "http://192.168.200.2:801/eportal/"
 KEEP_ALIVE_INTERVAL = 60    # 正常在线时的心跳间隔（秒）
 RETRY_INTERVAL = 5          # 断网或认证失败时的重试间隔（秒）
 TEST_URL = "http://www.baidu.com"
 # ================================================
-
-OPERATOR_CONFIG = {
-    "cmcc": ("0", "cmcc"),
-    "telecom": ("1", "telecom"),
-}
 
 # 固定使用 INFO 级别输出日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -54,11 +49,9 @@ def check_internet():
 
 
 def authenticate():
-    operator_config = OPERATOR_CONFIG.get(OPERATOR)
-    if operator_config is None:
-        logger.error('运营商配置无效，请将 OPERATOR 设置为 "移动" 或 "电信"')
+    if OPERATOR not in ("cmcc", "telecom", "unicom"):
+        logger.error('运营商配置无效，请将 OPERATOR 设置为 "cmcc"、"telecom" 或 "unicom"')
         return False
-    account_prefix, account_suffix = operator_config
 
     local_ip = get_local_ip()
     if not local_ip:
@@ -69,7 +62,7 @@ def authenticate():
         "a": "login",
         "callback": "dr1003",
         "login_method": "1",
-        "user_account": f",{account_prefix},{USERNAME}@{account_suffix}",
+        "user_account": f",1,{USERNAME}@{OPERATOR}",
         "user_password": PASSWORD,
         "wlan_user_ip": local_ip,
         "wlan_user_ipv6": "",
